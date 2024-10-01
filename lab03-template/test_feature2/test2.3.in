@@ -1,0 +1,2 @@
+ls -1 test2.folder/
+grep "this is a test" "test2.folder/c.txt"

@@ -1,0 +1,2 @@
+ls -1 test2.folder/
+grep test test2.folder/c.txt
