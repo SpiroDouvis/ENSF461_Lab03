@@ -79,6 +79,12 @@ int main(int argc, char *argv[])
         // TODO
 
         // Run commands
+        if (fork()!=0){
+//in parent
+        } else{
+            //in child
+        
+        }
         // * Fork and execute commands
         // * Handle pipes
         // * Handle redirections
