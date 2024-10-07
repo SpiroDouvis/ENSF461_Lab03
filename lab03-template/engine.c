@@ -5,6 +5,7 @@
 #include <sys/wait.h>
 #include "parser.h"
 
+const char* path;
 
 int read_line(int infile, char *buffer, int maxlen)
 {
@@ -35,6 +36,27 @@ int read_line(int infile, char *buffer, int maxlen)
 int normalize_executable(char **command) {
     // Convert command to absolute path if needed (e.g., "ls" -> "/bin/ls")
     // Returns TRUE if command was found, FALSE otherwise
+    char* pathcpy = strdup(path);
+    char* tokens = strtok(pathcpy, ":");
+
+    while(tokens != NULL) {
+        // Check if command exists in the current path
+        char* command_path = malloc(strlen(tokens) + strlen(command[0]) + 2);
+        strcpy(command_path, tokens);
+        strcat(command_path, "/");
+        strcat(command_path, command[0]);
+        if (access(command_path, F_OK) == 0) {
+            command[0] = command_path;
+            // Free the remaining tokens if necessary
+            while ((tokens = strtok(NULL, ":")) != NULL) {
+                // No need to process further tokens
+            }
+            return TRUE;
+        }
+        free(command_path); // Free the allocated memory
+        tokens = strtok(NULL, ":");
+    }
+
     return FALSE;
 }
 
@@ -49,8 +71,10 @@ char* lookup_variable(char* name) {
 }
 
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {    
+
+    path = getenv("PATH");
+
     if(argc != 2) {
         printf("Usage: %s <input file>\n", argv[0]);
         return -1;
@@ -85,10 +109,20 @@ int main(int argc, char *argv[])
 
         // Parse token list
         // * Organize tokens into command parameters
+        char* args[numtokens+1];
+            for (int ii = 0; ii < numtokens; ii++) {
+                args[ii] = tokens[ii]->value;
+            }
+        args[numtokens] = NULL;
+
+
         // * Check if command is a variable assignment
         // * Check if command has a redirection
         // * Expand variables if any
         // * Normalize executables
+        if (args[0][0] != '/'){
+            normalize_executable(args);
+        }
         // * Check if pipes are present
 
         // * Check if pipes are present
@@ -99,11 +133,7 @@ int main(int argc, char *argv[])
             //in parent
         } else{
             //in child
-            char* args[numtokens+1];
-            for (int ii = 0; ii < numtokens; ii++) {
-                args[ii] = tokens[ii]->value;
-            }
-            args[numtokens] = NULL;
+
             execve(args[0], args, NULL);
 
         }
