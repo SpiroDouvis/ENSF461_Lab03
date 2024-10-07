@@ -8,9 +8,25 @@
 
 int read_line(int infile, char *buffer, int maxlen)
 {
+    static int file_offset = 0;
     int readlen = 0;
 
     // TODO: Read a single line from file; retains final '\n'
+
+    char ch;
+    while (readlen < maxlen - 1) {
+        int result = pread(infile, &ch, 1, file_offset++);
+        if (result == 0) { // End of file
+            break;
+        } else if (result < 0) { // Error
+            return -1;
+        }
+        buffer[readlen++] = ch;
+        if (ch == '\n') { // End of line
+            break;
+        }
+    }
+    buffer[readlen] = '\0'; // Null-terminate the string
     
     return readlen;
 }
@@ -80,10 +96,16 @@ int main(int argc, char *argv[])
 
         // Run commands
         if (fork()!=0){
-//in parent
+            //in parent
         } else{
             //in child
-        
+            char* args[numtokens+1];
+            for (int ii = 0; ii < numtokens; ii++) {
+                args[ii] = tokens[ii]->value;
+            }
+            args[numtokens] = NULL;
+            execve(args[0], args, NULL);
+
         }
         // * Fork and execute commands
         // * Handle pipes
