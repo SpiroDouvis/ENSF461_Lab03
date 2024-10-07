@@ -110,10 +110,19 @@ int main(int argc, char *argv[]) {
         // Parse token list
         // * Organize tokens into command parameters
         char* args[numtokens+1];
+        int index_redirection=-1;
             for (int ii = 0; ii < numtokens; ii++) {
+                if(tokens[ii]->type == TOKEN_REDIR){
+                    index_redirection = ii;
+                    break;
+                }
                 args[ii] = tokens[ii]->value;
             }
-        args[numtokens] = NULL;
+        if (index_redirection != -1) {
+            args[index_redirection] = NULL;
+        } else {
+            args[numtokens] = NULL;
+        }
 
 
         // * Check if command is a variable assignment
@@ -131,15 +140,31 @@ int main(int argc, char *argv[]) {
         // Run commands
         if (fork()!=0){
             //in parent
+            wait(NULL);
         } else{
             //in child
-
+            if(index_redirection!=-1)
+            //was a < found
+            {
+                int fd=open(tokens[index_redirection+1]->value, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                if(fd<0)
+                {
+                    perror("Error opening file");
+                    return -4;
+                }
+                dup2(fd, STDOUT_FILENO);
+                close(fd);
+            }
             execve(args[0], args, NULL);
+            perror("Error executing command");
+            return -5;
 
         }
         // * Fork and execute commands
         // * Handle pipes
         // * Handle redirections
+
+
         // * Handle pipes
         // * Handle variable assignments
         // TODO
