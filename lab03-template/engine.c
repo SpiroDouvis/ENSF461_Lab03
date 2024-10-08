@@ -7,13 +7,13 @@
 
 const char* path;
 
-typedef struct variable{
+typedef struct variable {
     char* name;
     char* value;
 } variable_type;
 
 variable_type** variables;
-int variable_count = 0;
+int variable_count;
 
 int read_line(int infile, char* buffer, int maxlen)
 {
@@ -68,15 +68,18 @@ int normalize_executable(char** command)
 }
 
 void add_variable(const char* name, const char* value) {
-    variables = (variable_type**) realloc(variables, sizeof(variable_type*) * (variable_count + 1));
+    variables = (variable_type**)realloc(variables, sizeof(variable_type*) * (variable_count + 1));
     assert(variables != NULL);
 
-    variables[variable_count] = (variable_type*) malloc(sizeof(variable_type));
+    variables[variable_count] = (variable_type*)malloc(sizeof(variable_type));
     assert(variables[variable_count] != NULL);
 
     variables[variable_count]->name = strdup(name);
     variables[variable_count]->value = strdup(value);
-    variable_count++;
+    (variable_count)++;
+
+    // printf("Added variable name=%s: value=%s\n", variables[0]->name, variables[0]->value);
+    // printf("A: total variables: %d\n", *variable_count);
 }
 
 void update_variable(char* name, char* value) {
@@ -101,8 +104,11 @@ char* lookup_variable(char* name)
     // Lookup a variable
 
     for (int i = 0; i < variable_count; i++) {
+        // printf("LOOKUP: variable[%d] name=%s\n", i, variables[i]->name);
         if (strcmp(variables[i]->name, name) == 0) {
             // Found the variable
+            // printf("found variable '%s', value: '%s'\n", name, variables[i]->value);
+
             return variables[i]->value;
         }
     }
@@ -111,6 +117,7 @@ char* lookup_variable(char* name)
 
 int main(int argc, char* argv[])
 {
+
     path = getenv("PATH");
     if (argc != 2)
     {
@@ -125,9 +132,10 @@ int main(int argc, char* argv[])
     }
     char buffer[1024];
     int readlen;
-    
+    variable_count = 0;
+
     // Read file line by line
-    while( 1 ) {
+    while (1) {
         // Load the next line
         readlen = read_line(infile, buffer, 1024);
         if (readlen < 0)
@@ -146,6 +154,8 @@ int main(int argc, char* argv[])
         char* args[numtokens + 1];
         int index_redirection = -1;
         int index_pipe = -1;
+        int index_assign = -1;
+        int index_var = -1;
 
         for (int ii = 0; ii < numtokens; ii++)
         {
@@ -157,6 +167,14 @@ int main(int argc, char* argv[])
             {
                 index_pipe = ii;
             }
+            if (tokens[ii]->type == TOKEN_ASSIGN)
+            {
+                index_assign = ii;
+            }
+            if (tokens[ii]->type == TOKEN_VAR)
+            {
+                index_var = ii;
+            }
             args[ii] = tokens[ii]->value;
         }
 
@@ -164,15 +182,23 @@ int main(int argc, char* argv[])
         {
             args[index_redirection] = NULL;
         }
-        else if (index_pipe != -1)
+        if (index_pipe != -1)
         {
             args[index_pipe] = NULL;
         }
-
+        if (index_assign != -1)
+        {
+            args[index_assign] = NULL;
+        }
+        if (index_var != -1)
+        {
+            char* variable = lookup_variable(args[index_var]);
+            args[index_var] = variable;
+        }
         args[numtokens] = NULL;
 
 
-        if (args[0][0] != '/')
+        if (args[0][0] != '/' && index_assign == -1)
         {
             normalize_executable(args);
         }
@@ -257,9 +283,61 @@ int main(int argc, char* argv[])
                 dup2(fd, STDOUT_FILENO);
                 close(fd);
             }
-            execve(args[0], args, NULL);
-            perror("Error executing command");
-            return -5;
+
+            if (index_assign != -1)
+            {
+                int pipe_fd[2];
+                char buff[128];
+
+                if (pipe(pipe_fd) == -1)
+                {
+                    perror("Error creating pipe");
+                    return -4;
+                }
+
+                if (fork() != 0) { // Parent Process, runs after child finishes
+                    wait(NULL);
+
+                    read(pipe_fd[0], buff, 128);
+                    update_variable(args[index_assign - 1], buff);
+                    exit(0); // exits parent fork process
+                }
+                else {
+                    // Child (runs first)
+
+                    dup2(pipe_fd[1], STDOUT_FILENO);
+                    close(pipe_fd[1]);
+
+                    char* assign_args[numtokens - index_assign];
+
+                    for (int ii = index_assign + 1; ii < numtokens; ii++)
+                    {
+                        if (tokens[ii] == NULL) {
+                            assign_args[ii - index_assign - 1] = NULL;
+                            break;
+                        }
+
+                        assign_args[ii - index_assign - 1] = tokens[ii]->value;
+                    }
+
+                    assign_args[numtokens - index_assign - 1] = NULL;
+
+                    if (assign_args[0][0] != '/')
+                    {
+                        normalize_executable(assign_args);
+                    }
+
+                    execve(assign_args[0], assign_args, NULL);
+                    perror("Error executing command");
+                    return -5;
+                }
+            }
+
+            else {
+                execve(args[0], args, NULL);
+                perror("Error executing command");
+                return -5;
+            }
         }
 
 
@@ -274,6 +352,7 @@ int main(int argc, char* argv[])
             free(variables[x]);
         }
         free(variables);
+        // free(variable_count);
         // Free tokens vector
         for (int ii = 0; ii < numtokens; ii++) {
             free(tokens[ii]->value);
