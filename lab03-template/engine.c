@@ -7,6 +7,14 @@
 
 const char* path;
 
+typedef struct variable{
+    char* name;
+    char* value;
+} variable_type;
+
+variable_type** variables;
+int variable_count = 0;
+
 int read_line(int infile, char* buffer, int maxlen)
 {
     static int file_offset = 0;
@@ -59,14 +67,45 @@ int normalize_executable(char** command)
     return 0;
 }
 
-void update_variable(char* name, char* value)
-{
+void add_variable(const char* name, const char* value) {
+    variables = (variable_type**) realloc(variables, sizeof(variable_type*) * (variable_count + 1));
+    assert(variables != NULL);
+
+    variables[variable_count] = (variable_type*) malloc(sizeof(variable_type));
+    assert(variables[variable_count] != NULL);
+
+    variables[variable_count]->name = strdup(name);
+    variables[variable_count]->value = strdup(value);
+    variable_count++;
+}
+
+void update_variable(char* name, char* value) {
     // Update or create a variable
+    if (variables == NULL) {
+        add_variable(name, value);
+        return;
+    }
+
+    for (int i = 0; i < variable_count; i++) {
+        if (strcmp(variables[i]->name, name) == 0) {
+            variables[i]->value = strdup(value);
+            return;
+        }
+    }
+
+    add_variable(name, value);
 }
 
 char* lookup_variable(char* name)
 {
     // Lookup a variable
+
+    for (int i = 0; i < variable_count; i++) {
+        if (strcmp(variables[i]->name, name) == 0) {
+            // Found the variable
+            return variables[i]->value;
+        }
+    }
     return NULL;
 }
 
@@ -86,9 +125,10 @@ int main(int argc, char* argv[])
     }
     char buffer[1024];
     int readlen;
-
-    while (1)
-    {
+    
+    // Read file line by line
+    while( 1 ) {
+        // Load the next line
         readlen = read_line(infile, buffer, 1024);
         if (readlen < 0)
         {
@@ -223,8 +263,19 @@ int main(int argc, char* argv[])
         }
 
 
-        for (int ii = 0; ii < numtokens; ii++)
-        {
+        // * Handle pipes
+        // * Handle variable assignments
+        // TODO
+
+        // Free Variables
+        for (int x = 0; x < variable_count; x++) {
+            free(variables[x]->name);
+            free(variables[x]->value);
+            free(variables[x]);
+        }
+        free(variables);
+        // Free tokens vector
+        for (int ii = 0; ii < numtokens; ii++) {
             free(tokens[ii]->value);
             free(tokens[ii]);
         }
