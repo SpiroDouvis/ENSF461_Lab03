@@ -8,8 +8,10 @@
             "name": "(gdb) Launch",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/lab03-template/engine.out",
-            "args": ["test3.1.in"],
+            "program": "/lab03-template/engine.out",
+            "args": [
+                "test4.1.in"
+            ],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",
             "environment": [],
@@ -28,6 +30,5 @@
                 }
             ]
         }
-
     ]
 }
